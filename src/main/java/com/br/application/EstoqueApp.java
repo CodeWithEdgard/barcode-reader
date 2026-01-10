@@ -17,60 +17,29 @@ import javafx.stage.Stage;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
 
 public class EstoqueApp extends Application {
 
     private ProductService service;
 
     private final ObservableList<Product> estoqueGeral = FXCollections.observableArrayList();
-    private final ObservableList<ItemCarrinho> carrinhoSaida = FXCollections.observableArrayList();
-    private final ObservableList<ItemCarrinho> carrinhoEntrada =
-            FXCollections.observableArrayList();
 
+    // Carrinhos (apenas produtos únicos)
+    private final ObservableList<Product> carrinhoSaida = FXCollections.observableArrayList();
+    private final ObservableList<Product> carrinhoEntrada = FXCollections.observableArrayList();
+
+    // Mapas para controlar quantidade
+    private final Map<String, Integer> quantidadesSaida = new HashMap<>();
+    private final Map<String, Integer> quantidadesEntrada = new HashMap<>();
+
+    // Buffer para leitor HID
     private final StringBuilder barcodeBuffer = new StringBuilder();
     private long lastKeyTime = 0;
     private static final long MAX_DELAY_MS = 50;
 
     private Label lblStatus;
-
-    public static class ItemCarrinho {
-        private final Product produto;
-        private int quantidade = 0;
-
-        public ItemCarrinho(Product produto, int qtdInicial) {
-            this.produto = produto;
-            this.quantidade = qtdInicial;
-        }
-
-        public void adicionar(int qtd) {
-            this.quantidade += qtd;
-        }
-
-        public Product getProduto() {
-            return produto;
-        }
-
-        public int getQuantidade() {
-            return quantidade;
-        }
-
-        public String getCodigo() {
-            return produto.getCodigo();
-        }
-
-        public String getNome() {
-            return produto.getNome();
-        }
-
-        public String getDescricao() {
-            return produto.getDescricao();
-        }
-
-        public BigDecimal getSaldoAtual() {
-            return produto.getSaldo();
-        }
-    }
 
     @Override
     public void start(Stage primaryStage) {
@@ -81,11 +50,12 @@ public class EstoqueApp extends Application {
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setStyle("-fx-tab-min-width: 140; -fx-tab-max-width: 140;");
 
         tabPane.getTabs().addAll(
-                criarTabMovimentacao("Saída em Lote", carrinhoSaida, false, "#F44336"),
-                criarTabMovimentacao("Entrada em Lote", carrinhoEntrada, true, "#2196F3"),
+                criarTabMovimentacao("Saída em Lote", carrinhoSaida, quantidadesSaida, false,
+                        "#F44336"),
+                criarTabMovimentacao("Entrada em Lote", carrinhoEntrada, quantidadesEntrada, true,
+                        "#2196F3"),
                 new Tab("Cadastro de Produtos", criarPainelCadastro()),
                 new Tab("Estoque Atual", criarPainelEstoqueAtual()));
 
@@ -94,15 +64,15 @@ public class EstoqueApp extends Application {
         root.setStyle("-fx-background-color: #f5f7fa;");
 
         Scene scene = new Scene(root, 1050, 780);
-        primaryStage.setTitle("Controle de Estoque - Suzano");
+        primaryStage.setTitle("Controle de Estoque");
         primaryStage.setScene(scene);
         primaryStage.show();
 
         atualizarStatus("Sistema pronto ✓ Escaneie ou digite manualmente", false);
     }
 
-    private Tab criarTabMovimentacao(String titulo, ObservableList<ItemCarrinho> carrinho,
-            boolean isEntrada, String corBotao) {
+    private Tab criarTabMovimentacao(String titulo, ObservableList<Product> carrinho,
+            Map<String, Integer> quantidades, boolean isEntrada, String corBotao) {
         Tab tab = new Tab(titulo);
 
         VBox painel = new VBox(20);
@@ -111,35 +81,36 @@ public class EstoqueApp extends Application {
         Label lblTitulo = new Label(titulo);
         lblTitulo.setStyle("-fx-font-size: 22; -fx-font-weight: bold; -fx-text-fill: #333;");
 
-        TableView<ItemCarrinho> tabela = new TableView<>();
+        TableView<Product> tabela = new TableView<>();
         tabela.setItems(carrinho);
         tabela.setPlaceholder(new Label("Carrinho vazio"));
-        tabela.setStyle("-fx-background-color: white; -fx-border-color: #ddd;");
 
-        TableColumn<ItemCarrinho, String> colCodigo = new TableColumn<>("Código");
+        TableColumn<Product, String> colCodigo = new TableColumn<>("Código");
         colCodigo.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getCodigo()));
         colCodigo.setPrefWidth(120);
 
-        TableColumn<ItemCarrinho, String> colNome = new TableColumn<>("Nome");
+        TableColumn<Product, String> colNome = new TableColumn<>("Nome");
         colNome.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getNome()));
         colNome.setPrefWidth(250);
 
-        TableColumn<ItemCarrinho, String> colDesc = new TableColumn<>("Descrição");
+        TableColumn<Product, String> colDesc = new TableColumn<>("Descrição");
         colDesc.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getDescricao()));
         colDesc.setPrefWidth(280);
 
-        TableColumn<ItemCarrinho, Integer> colQtd = new TableColumn<>("Quantidade");
-        colQtd.setCellValueFactory(
-                c -> new javafx.beans.property.SimpleIntegerProperty(c.getValue().getQuantidade())
-                        .asObject());
+        TableColumn<Product, Integer> colQtd = new TableColumn<>("Quantidade");
+        colQtd.setCellValueFactory(c -> {
+            String codigo = c.getValue().getCodigo();
+            int qtd = quantidades.getOrDefault(codigo, 0);
+            return new javafx.beans.property.SimpleIntegerProperty(qtd).asObject();
+        });
         colQtd.setPrefWidth(140);
 
-        TableColumn<ItemCarrinho, String> colSaldo = new TableColumn<>("Saldo Atual");
+        TableColumn<Product, String> colSaldo = new TableColumn<>("Saldo Atual");
         colSaldo.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
-                c.getValue().getSaldoAtual().toPlainString()));
+                c.getValue().getSaldo().toPlainString()));
         colSaldo.setPrefWidth(120);
 
         tabela.getColumns().addAll(colCodigo, colNome, colDesc, colQtd, colSaldo);
@@ -147,7 +118,7 @@ public class EstoqueApp extends Application {
         VBox painelManual = new VBox(12);
         painelManual.setPadding(new Insets(15));
         painelManual.setStyle(
-                "-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 6; -fx-background-radius: 6;");
+                "-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 6;");
 
         Label lblManual = new Label("Adicionar manualmente");
         lblManual.setStyle("-fx-font-weight: bold; -fx-text-fill: #555;");
@@ -162,7 +133,17 @@ public class EstoqueApp extends Application {
 
         Button btnAdd = new Button("Adicionar");
         btnAdd.setStyle("-fx-background-color: #607D8B; -fx-text-fill: white;");
-        btnAdd.setOnAction(e -> adicionarItemAoCarrinho(carrinho, txtCodigo, txtQtd));
+        btnAdd.setOnAction(e -> {
+            String codigo = txtCodigo.getText().trim();
+            try {
+                int qtd = Integer.parseInt(txtQtd.getText().trim());
+                adicionarAoCarrinho(carrinho, quantidades, codigo, qtd);
+                txtCodigo.clear();
+                txtQtd.setText("1");
+            } catch (NumberFormatException ex) {
+                atualizarStatus("Quantidade inválida!", true);
+            }
+        });
 
         painelManual.getChildren().addAll(lblManual, new HBox(12, new Label("Código:"), txtCodigo),
                 new HBox(12, new Label("Quantidade:"), txtQtd, btnAdd));
@@ -171,14 +152,16 @@ public class EstoqueApp extends Application {
         btnFinalizar.setStyle("-fx-background-color: " + corBotao
                 + "; -fx-text-fill: white; -fx-font-size: 16; -fx-padding: 12 30;");
 
-        btnFinalizar.setOnAction(e -> finalizarMovimentacao(carrinho, isEntrada));
+        btnFinalizar.setOnAction(e -> finalizarMovimentacao(carrinho, quantidades, isEntrada));
 
         Button btnLimpar = new Button("Limpar Carrinho");
         btnLimpar.setStyle("-fx-background-color: #9E9E9E; -fx-text-fill: white;");
 
-        btnLimpar.setOnAction(e -> carrinho.clear());
+        btnLimpar.setOnAction(e -> {
+            carrinho.clear();
+            quantidades.clear();
+        });
 
-        // Adição segura dos componentes
         painel.getChildren().addAll(lblTitulo, painelManual, tabela,
                 new HBox(20, btnFinalizar, btnLimpar), lblStatus = new Label(""));
 
@@ -186,92 +169,84 @@ public class EstoqueApp extends Application {
         return tab;
     }
 
-    private void adicionarItemAoCarrinho(ObservableList<ItemCarrinho> carrinho, TextField txtCodigo,
-            TextField txtQtd) {
-        String codigo = txtCodigo.getText().trim();
+    private void adicionarAoCarrinho(ObservableList<Product> carrinho,
+            Map<String, Integer> quantidades, String codigo, int qtdAdicionar) {
         if (codigo.isEmpty()) {
             atualizarStatus("Informe o código do produto!", true);
             return;
         }
 
-        try {
-            int qtd = Integer.parseInt(txtQtd.getText().trim());
-            if (qtd <= 0)
-                throw new NumberFormatException();
-
-            service.encontrarPeloCodigo(codigo).ifPresentOrElse(produto -> {
-                Optional<ItemCarrinho> existente = carrinho.stream()
-                        .filter(item -> item.getCodigo().equals(codigo)).findFirst();
-
-                if (existente.isPresent()) {
-                    existente.get().adicionar(qtd);
-                    carrinho.set(carrinho.indexOf(existente.get()), existente.get());
-                } else {
-                    carrinho.add(new ItemCarrinho(produto, qtd));
-                }
-
-                atualizarStatus("Adicionado com sucesso ✓ " + codigo + " × " + qtd, false);
-                txtCodigo.clear();
-                txtQtd.setText("1");
-            }, () -> atualizarStatus("Produto não encontrado ❌", true));
-        } catch (NumberFormatException e) {
-            atualizarStatus("Quantidade inválida! Digite número inteiro positivo", true);
+        if (qtdAdicionar <= 0) {
+            atualizarStatus("Quantidade deve ser maior que zero!", true);
+            return;
         }
+
+        service.encontrarPeloCodigo(codigo).ifPresentOrElse(produto -> {
+            // Atualiza quantidade no mapa
+            quantidades.merge(codigo, qtdAdicionar, Integer::sum);
+
+            // Adiciona o produto na lista apenas uma vez
+            if (!carrinho.contains(produto)) {
+                carrinho.add(produto);
+            }
+
+            atualizarStatus("Adicionado ✓ " + codigo + " × " + qtdAdicionar, false);
+        }, () -> atualizarStatus("Produto não encontrado ❌", true));
     }
 
-    private void finalizarMovimentacao(ObservableList<ItemCarrinho> carrinho, boolean isEntrada) {
+    private void finalizarMovimentacao(ObservableList<Product> carrinho,
+            Map<String, Integer> quantidades, boolean isEntrada) {
         if (carrinho.isEmpty()) {
-            atualizarStatus("O carrinho está vazio no momento", true);
+            atualizarStatus("Carrinho vazio!", true);
             return;
         }
 
         try {
-            for (ItemCarrinho item : carrinho) {
-                Product p = item.getProduto();
-                BigDecimal qtd = BigDecimal.valueOf(item.getQuantidade());
+            for (Product p : carrinho) {
+                String codigo = p.getCodigo();
+                int qtd = quantidades.getOrDefault(codigo, 0);
 
-                if (isEntrada) {
-                    p.entrada(qtd);
-                } else {
-                    p.saida(qtd);
+                if (qtd > 0) {
+                    BigDecimal quantidade = BigDecimal.valueOf(qtd);
+                    if (isEntrada) {
+                        p.entrada(quantidade);
+                    } else {
+                        p.saida(quantidade);
+                    }
+                    service.salvarProduto(p);
                 }
-
-                service.salvarProduto(p);
             }
 
             estoqueGeral.setAll(service.listarTodos());
             carrinho.clear();
+            quantidades.clear();
 
-            atualizarStatus(isEntrada ? "Entrada registrada com sucesso! ✓"
-                    : "Saída registrada com sucesso! ✓", false);
-
+            atualizarStatus(isEntrada ? "Entrada concluída ✓" : "Saída concluída ✓", false);
         } catch (Exception ex) {
-            atualizarStatus("Erro ao processar movimentação: " + ex.getMessage() + " ❌", true);
+            atualizarStatus("Erro: " + ex.getMessage(), true);
         }
     }
 
-    // Aba Cadastro
     private VBox criarPainelCadastro() {
         Label lblTitulo = new Label("Adicionar ou Editar Produto");
-        lblTitulo.setStyle("-fx-font-size: 20; -fx-font-weight: bold; -fx-text-fill: #333;");
+        lblTitulo.setStyle("-fx-font-size: 20; -fx-font-weight: bold;");
 
         TextField txtCodigo = new TextField();
-        txtCodigo.setPromptText("Código (obrigatório para edição)");
+        txtCodigo.setPromptText("Código");
 
         TextField txtNome = new TextField();
-        txtNome.setPromptText("Nome do produto");
+        txtNome.setPromptText("Nome");
 
         TextField txtDescricao = new TextField();
-        txtDescricao.setPromptText("Descrição (opcional)");
+        txtDescricao.setPromptText("Descrição");
 
-        Button btnSalvar = new Button("Salvar Produto");
-        btnSalvar.setStyle(
-                "-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-size: 14; -fx-padding: 10 25;");
+        Button btnSalvar = new Button("Salvar");
+        btnSalvar.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
 
         btnSalvar.setOnAction(e -> {
             String codigo = txtCodigo.getText().trim();
             if (codigo.isEmpty()) {
-                atualizarStatus("O código é obrigatório!", true);
+                atualizarStatus("Código obrigatório!", true);
                 return;
             }
 
@@ -283,19 +258,17 @@ public class EstoqueApp extends Application {
                 service.salvarProduto(p);
 
                 estoqueGeral.setAll(service.listarTodos());
-                atualizarStatus("Produto salvo com sucesso! ✓", false);
+                atualizarStatus("Salvo com sucesso!", false);
 
                 txtCodigo.clear();
                 txtNome.clear();
                 txtDescricao.clear();
             } catch (Exception ex) {
-                atualizarStatus("Erro ao salvar: " + ex.getMessage(), true);
+                atualizarStatus("Erro: " + ex.getMessage(), true);
             }
         });
 
-        Button btnLimpar = new Button("Limpar Formulário");
-        btnLimpar.setStyle("-fx-background-color: #9E9E9E; -fx-text-fill: white;");
-
+        Button btnLimpar = new Button("Limpar");
         btnLimpar.setOnAction(e -> {
             txtCodigo.clear();
             txtNome.clear();
@@ -303,56 +276,41 @@ public class EstoqueApp extends Application {
         });
 
         VBox painel = new VBox(20);
-        painel.setPadding(new Insets(20));
-        painel.getChildren().addAll(lblTitulo, new HBox(12, new Label("Código:"), txtCodigo),
-                new HBox(12, new Label("Nome:"), txtNome),
-                new HBox(12, new Label("Descrição:"), txtDescricao),
-                new HBox(15, btnSalvar, btnLimpar));
+        painel.getChildren().addAll(lblTitulo, new HBox(10, new Label("Código:"), txtCodigo),
+                new HBox(10, new Label("Nome:"), txtNome),
+                new HBox(10, new Label("Descrição:"), txtDescricao),
+                new HBox(10, btnSalvar, btnLimpar));
 
         return painel;
     }
 
-    // Aba Estoque Atual
     private VBox criarPainelEstoqueAtual() {
         TableView<Product> tabela = new TableView<>();
         tabela.setItems(estoqueGeral);
-        tabela.setPlaceholder(new Label("Nenhum produto cadastrado"));
 
-        // Configuração das colunas (mantida igual)
         TableColumn<Product, String> colCodigo = new TableColumn<>("Código");
         colCodigo.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getCodigo()));
-        colCodigo.setPrefWidth(120);
 
         TableColumn<Product, String> colNome = new TableColumn<>("Nome");
         colNome.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getNome()));
-        colNome.setPrefWidth(250);
 
         TableColumn<Product, String> colDesc = new TableColumn<>("Descrição");
         colDesc.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getDescricao()));
-        colDesc.setPrefWidth(300);
 
         TableColumn<Product, String> colSaldo = new TableColumn<>("Saldo");
         colSaldo.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().getSaldo().toPlainString()));
-        colSaldo.setPrefWidth(120);
 
         tabela.getColumns().addAll(colCodigo, colNome, colDesc, colSaldo);
 
-        Button btnAtualizar = new Button("Atualizar Estoque");
-        btnAtualizar.setStyle("-fx-background-color: #607D8B; -fx-text-fill: white;");
-
+        Button btnAtualizar = new Button("Atualizar");
         btnAtualizar.setOnAction(e -> estoqueGeral.setAll(service.listarTodos()));
 
-        // Label separada para aplicar estilo
-        Label lblTitulo = new Label("Estoque Atual");
-        lblTitulo.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
-
         VBox painel = new VBox(15);
-        painel.setPadding(new Insets(20));
-        painel.getChildren().addAll(lblTitulo, tabela, btnAtualizar);
+        painel.getChildren().addAll(new Label("Estoque Atual"), tabela, btnAtualizar);
 
         return painel;
     }
@@ -368,7 +326,7 @@ public class EstoqueApp extends Application {
         if (ch.equals("\r") || event.getCode() == KeyCode.ENTER) {
             String codigo = barcodeBuffer.toString().trim();
             if (codigo.length() >= 3) {
-                adicionarItemAoCarrinho(carrinhoSaida, new TextField(codigo), new TextField("1"));
+                adicionarAoCarrinho(carrinhoSaida, quantidadesSaida, codigo, 1);
             }
             barcodeBuffer.setLength(0);
             event.consume();
@@ -380,8 +338,7 @@ public class EstoqueApp extends Application {
     private void atualizarStatus(String texto, boolean erro) {
         if (lblStatus != null) {
             lblStatus.setText(texto);
-            lblStatus.setStyle(erro ? "-fx-font-weight: bold; -fx-text-fill: #D32F2F;"
-                    : "-fx-font-weight: bold; -fx-text-fill: #2E7D32;");
+            lblStatus.setStyle(erro ? "-fx-text-fill: red;" : "-fx-text-fill: green;");
         }
     }
 
