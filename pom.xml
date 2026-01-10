@@ -29,42 +29,71 @@
             <version>2.0.17</version>
         </dependency>
 
+        <!-- JavaFX -->
+    <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-controls</artifactId>
+        <version>21</version> <!-- ou a versão que preferir -->
+    </dependency>
+    <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-fxml</artifactId>
+        <version>21</version>
+    </dependency>
+
+    <!-- Opcional: para ícones, animações, etc -->
+    <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-graphics</artifactId>
+        <version>21</version>
+    </dependency>
+
     </dependencies>
 
     <build>
-        <plugins>
+    <plugins>
 
-            <!-- Java 17 -->
-            <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <release>17</release>
-                </configuration>
-            </plugin>
+        <!-- Compilador Java 17 -->
+        <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.13.0</version>
+            <configuration>
+                <release>17</release>
+            </configuration>
+        </plugin>
 
-            <!-- JaCoCo -->
-            <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+        <!-- JavaFX - essencial para rodar com mvn javafx:run -->
+        <plugin>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-maven-plugin</artifactId>
+            <version>0.0.8</version>
+            <configuration>
+                <mainClass>com.br.application.EstoqueApp</mainClass> <!-- Ajuste aqui!!! -->
+            </configuration>
+        </plugin>
 
-        </plugins>
-    </build>
+        <!-- JaCoCo (mantido como estava) -->
+        <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>0.8.12</version>
+            <executions>
+                <execution>
+                    <goals>
+                        <goal>prepare-agent</goal>
+                    </goals>
+                </execution>
+                <execution>
+                    <id>report</id>
+                    <phase>test</phase>
+                    <goals>
+                        <goal>report</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+
+    </plugins>
+</build>
 
 </project>
