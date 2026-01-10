@@ -33,7 +33,7 @@
     <dependency>
         <groupId>org.openjfx</groupId>
         <artifactId>javafx-controls</artifactId>
-        <version>21</version> <!-- ou a versão que preferir -->
+        <version>21</version> 
     </dependency>
     <dependency>
         <groupId>org.openjfx</groupId>
@@ -41,7 +41,7 @@
         <version>21</version>
     </dependency>
 
-    <!-- Opcional: para ícones, animações, etc -->
+    <!-- Opcional: ícones, animações, etc -->
     <dependency>
         <groupId>org.openjfx</groupId>
         <artifactId>javafx-graphics</artifactId>
@@ -68,11 +68,11 @@
             <artifactId>javafx-maven-plugin</artifactId>
             <version>0.0.8</version>
             <configuration>
-                <mainClass>com.br.application.EstoqueApp</mainClass> <!-- Ajuste aqui!!! -->
+                <mainClass>com.br.application.EstoqueApp</mainClass> 
             </configuration>
         </plugin>
 
-        <!-- JaCoCo (mantido como estava) -->
+        <!-- JaCoCo -->
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
