@@ -59,6 +59,14 @@ public class Product {
         return this.saldo;
     }
 
+    public String getNome() {
+        return nome;
+    }
+
+    public String getDescricao() {
+        return descricao;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
