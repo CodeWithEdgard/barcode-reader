@@ -1,5 +1,6 @@
 package com.br.application;
 
+import com.br.domain.ConversorCodigo;
 import com.br.domain.Product;
 import com.br.repository.ProductRepositoryImpl;
 import com.br.service.ProductService;
@@ -15,10 +16,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
 public class EstoqueApp extends Application {
 
@@ -26,210 +24,181 @@ public class EstoqueApp extends Application {
 
     private final ObservableList<Product> estoqueGeral = FXCollections.observableArrayList();
 
-    // Carrinhos (apenas produtos únicos)
-    private final ObservableList<Product> carrinhoSaida = FXCollections.observableArrayList();
     private final ObservableList<Product> carrinhoEntrada = FXCollections.observableArrayList();
+    private final ObservableList<Product> carrinhoSaida = FXCollections.observableArrayList();
 
-    // Mapas para controlar quantidade
-    private final Map<String, Integer> quantidadesSaida = new HashMap<>();
-    private final Map<String, Integer> quantidadesEntrada = new HashMap<>();
-
-    // Buffer para leitor HID
     private final StringBuilder barcodeBuffer = new StringBuilder();
     private long lastKeyTime = 0;
-    private static final long MAX_DELAY_MS = 50;
+    private static final long MAX_DELAY_MS = 100; // Aumentado para digitação manual + leitor HID
 
     private Label lblStatus;
+    private TabPane tabPane;
+    private Product ultimoProduto; // Para associar localização
 
     @Override
-    public void start(Stage primaryStage) {
+    public void start(Stage stage) {
         service = new ProductService(new ProductRepositoryImpl());
         estoqueGeral.setAll(service.listarTodos());
 
-        primaryStage.addEventFilter(KeyEvent.KEY_TYPED, this::handleScannerInput);
-
-        TabPane tabPane = new TabPane();
+        tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
-        tabPane.getTabs().addAll(
-                criarTabMovimentacao("Saída em Lote", carrinhoSaida, quantidadesSaida, false,
-                        "#F44336"),
-                criarTabMovimentacao("Entrada em Lote", carrinhoEntrada, quantidadesEntrada, true,
-                        "#2196F3"),
-                new Tab("Cadastro de Produtos", criarPainelCadastro()),
+        tabPane.getTabs().addAll(criarTabMovimentacao("Entrada", carrinhoEntrada, true, "#2196F3"),
+                criarTabMovimentacao("Saída", carrinhoSaida, false, "#F44336"),
+                new Tab("Cadastro", criarPainelCadastro()),
                 new Tab("Estoque Atual", criarPainelEstoqueAtual()));
 
         VBox root = new VBox(tabPane);
         root.setPadding(new Insets(15));
         root.setStyle("-fx-background-color: #f5f7fa;");
 
-        Scene scene = new Scene(root, 1050, 780);
-        primaryStage.setTitle("Controle de Estoque");
-        primaryStage.setScene(scene);
-        primaryStage.show();
+        // Listener corrigido: no ROOT com ANY (captura mesmo com foco em TextField)
+        root.addEventHandler(KeyEvent.ANY, this::handleScanner);
 
-        atualizarStatus("Sistema pronto ✓ Escaneie ou digite manualmente", false);
+        Scene scene = new Scene(root, 1050, 780);
+        stage.setTitle("Controle de Estoque");
+        stage.setScene(scene);
+        stage.show();
+
+        atualizarStatus("Sistema pronto ✓ Digite ou escaneie", false);
     }
 
     private Tab criarTabMovimentacao(String titulo, ObservableList<Product> carrinho,
-            Map<String, Integer> quantidades, boolean isEntrada, String corBotao) {
+            boolean isEntrada, String corBotao) {
         Tab tab = new Tab(titulo);
 
-        VBox painel = new VBox(20);
-        painel.setPadding(new Insets(20));
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(15));
 
         Label lblTitulo = new Label(titulo);
-        lblTitulo.setStyle("-fx-font-size: 22; -fx-font-weight: bold; -fx-text-fill: #333;");
+        lblTitulo.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
 
-        TableView<Product> tabela = new TableView<>();
-        tabela.setItems(carrinho);
-        tabela.setPlaceholder(new Label("Carrinho vazio"));
+        TableView<Product> tabela = new TableView<>(carrinho);
 
         TableColumn<Product, String> colCodigo = new TableColumn<>("Código");
         colCodigo.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getCodigo()));
-        colCodigo.setPrefWidth(120);
 
         TableColumn<Product, String> colNome = new TableColumn<>("Nome");
         colNome.setCellValueFactory(
                 c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getNome()));
-        colNome.setPrefWidth(250);
 
-        TableColumn<Product, String> colDesc = new TableColumn<>("Descrição");
-        colDesc.setCellValueFactory(
-                c -> new javafx.beans.property.SimpleStringProperty(c.getValue().getDescricao()));
-        colDesc.setPrefWidth(280);
-
-        TableColumn<Product, Integer> colQtd = new TableColumn<>("Quantidade");
-        colQtd.setCellValueFactory(c -> {
-            String codigo = c.getValue().getCodigo();
-            int qtd = quantidades.getOrDefault(codigo, 0);
-            return new javafx.beans.property.SimpleIntegerProperty(qtd).asObject();
-        });
-        colQtd.setPrefWidth(140);
-
-        TableColumn<Product, String> colSaldo = new TableColumn<>("Saldo Atual");
+        TableColumn<Product, String> colSaldo = new TableColumn<>("Saldo");
         colSaldo.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
                 c.getValue().getSaldo().toPlainString()));
-        colSaldo.setPrefWidth(120);
 
-        tabela.getColumns().addAll(colCodigo, colNome, colDesc, colQtd, colSaldo);
+        tabela.getColumns().addAll(colCodigo, colNome, colSaldo);
 
-        VBox painelManual = new VBox(12);
-        painelManual.setPadding(new Insets(15));
-        painelManual.setStyle(
-                "-fx-background-color: white; -fx-border-color: #ddd; -fx-border-radius: 6;");
+        Button btnConfirmar = new Button(isEntrada ? "CONFIRMAR ENTRADA" : "CONFIRMAR SAÍDA");
+        btnConfirmar.setStyle("-fx-background-color: " + corBotao + "; -fx-text-fill: white;");
+        btnConfirmar.setOnAction(e -> finalizarMovimentacao(carrinho, isEntrada));
 
-        Label lblManual = new Label("Adicionar manualmente");
-        lblManual.setStyle("-fx-font-weight: bold; -fx-text-fill: #555;");
+        box.getChildren().addAll(lblTitulo, tabela, btnConfirmar, lblStatus = new Label(""));
 
-        TextField txtCodigo = new TextField();
-        txtCodigo.setPromptText("Código do produto");
-        txtCodigo.setPrefWidth(220);
-
-        TextField txtQtd = new TextField("1");
-        txtQtd.setPromptText("Quantidade");
-        txtQtd.setPrefWidth(100);
-
-        Button btnAdd = new Button("Adicionar");
-        btnAdd.setStyle("-fx-background-color: #607D8B; -fx-text-fill: white;");
-        btnAdd.setOnAction(e -> {
-            String codigo = txtCodigo.getText().trim();
-            try {
-                int qtd = Integer.parseInt(txtQtd.getText().trim());
-                adicionarAoCarrinho(carrinho, quantidades, codigo, qtd);
-                txtCodigo.clear();
-                txtQtd.setText("1");
-            } catch (NumberFormatException ex) {
-                atualizarStatus("Quantidade inválida!", true);
-            }
-        });
-
-        painelManual.getChildren().addAll(lblManual, new HBox(12, new Label("Código:"), txtCodigo),
-                new HBox(12, new Label("Quantidade:"), txtQtd, btnAdd));
-
-        Button btnFinalizar = new Button(isEntrada ? "CONFIRMAR ENTRADA" : "CONFIRMAR SAÍDA");
-        btnFinalizar.setStyle("-fx-background-color: " + corBotao
-                + "; -fx-text-fill: white; -fx-font-size: 16; -fx-padding: 12 30;");
-
-        btnFinalizar.setOnAction(e -> finalizarMovimentacao(carrinho, quantidades, isEntrada));
-
-        Button btnLimpar = new Button("Limpar Carrinho");
-        btnLimpar.setStyle("-fx-background-color: #9E9E9E; -fx-text-fill: white;");
-
-        btnLimpar.setOnAction(e -> {
-            carrinho.clear();
-            quantidades.clear();
-        });
-
-        painel.getChildren().addAll(lblTitulo, painelManual, tabela,
-                new HBox(20, btnFinalizar, btnLimpar), lblStatus = new Label(""));
-
-        tab.setContent(painel);
+        tab.setContent(box);
         return tab;
     }
 
-    private void adicionarAoCarrinho(ObservableList<Product> carrinho,
-            Map<String, Integer> quantidades, String codigo, int qtdAdicionar) {
-        if (codigo.isEmpty()) {
-            atualizarStatus("Informe o código do produto!", true);
-            return;
-        }
-
-        if (qtdAdicionar <= 0) {
-            atualizarStatus("Quantidade deve ser maior que zero!", true);
-            return;
-        }
-
-        service.encontrarPeloCodigo(codigo).ifPresentOrElse(produto -> {
-            // Atualiza quantidade no mapa
-            quantidades.merge(codigo, qtdAdicionar, Integer::sum);
-
-            // Adiciona o produto na lista apenas uma vez
-            if (!carrinho.contains(produto)) {
-                carrinho.add(produto);
-            }
-
-            atualizarStatus("Adicionado ✓ " + codigo + " × " + qtdAdicionar, false);
-        }, () -> atualizarStatus("Produto não encontrado ❌", true));
-    }
-
-    private void finalizarMovimentacao(ObservableList<Product> carrinho,
-            Map<String, Integer> quantidades, boolean isEntrada) {
+    private void finalizarMovimentacao(ObservableList<Product> carrinho, boolean isEntrada) {
         if (carrinho.isEmpty()) {
-            atualizarStatus("Carrinho vazio!", true);
+            atualizarStatus("Carrinho vazio", true);
             return;
         }
 
         try {
             for (Product p : carrinho) {
-                String codigo = p.getCodigo();
-                int qtd = quantidades.getOrDefault(codigo, 0);
+                // Para teste: usa um código fictício com quantidade 1 (ajuste conforme sua regra
+                // real)
+                String codigoLido = p.getCodigo() + "0001"; // ex: ABC1230001
 
-                if (qtd > 0) {
-                    BigDecimal quantidade = BigDecimal.valueOf(qtd);
-                    if (isEntrada) {
-                        p.entrada(quantidade);
-                    } else {
-                        p.saida(quantidade);
-                    }
-                    service.salvarProduto(p);
+                if (isEntrada) {
+                    p.entrada(codigoLido);
+                } else {
+                    p.saida(codigoLido);
+                }
+                service.salvarProduto(p);
+            }
+
+            carrinho.clear();
+            estoqueGeral.setAll(service.listarTodos());
+            atualizarStatus("Movimentação concluída ✓", false);
+
+        } catch (Exception e) {
+            atualizarStatus("Erro ao finalizar: " + e.getMessage(), true);
+        }
+    }
+
+    private void handleScanner(KeyEvent event) {
+        // Debug: veja no console o que está sendo capturado
+        System.out.println("Tecla: char='" + event.getCharacter() + "' | code=" + event.getCode()
+                + " | tipo=" + event.getEventType());
+
+        long now = Instant.now().toEpochMilli();
+        if (now - lastKeyTime > MAX_DELAY_MS) {
+            barcodeBuffer.setLength(0);
+            System.out.println("Buffer resetado (timeout)");
+        }
+        lastKeyTime = now;
+
+        if (event.getEventType() == KeyEvent.KEY_TYPED) {
+            String ch = event.getCharacter();
+            if (ch != null && !ch.isBlank() && !ch.equals("\r") && !ch.equals("\n")) {
+                barcodeBuffer.append(ch);
+                System.out.println(
+                        "Adicionado ao buffer: '" + ch + "' | Buffer atual: " + barcodeBuffer);
+            }
+        }
+
+        if (event.getCode() == KeyCode.ENTER) {
+            String codigoLido = barcodeBuffer.toString().trim();
+            System.out.println("ENTER detectado! Código completo: [" + codigoLido + "]");
+
+            if (codigoLido.length() >= 3) {
+                Tab atual = tabPane.getSelectionModel().getSelectedItem();
+                if (atual == null) {
+                    atualizarStatus("Nenhuma aba ativa", true);
+                    return;
+                }
+
+                String tituloAba = atual.getText();
+                System.out.println("Aba ativa: " + tituloAba);
+
+                if (tituloAba.contains("Entrada")) {
+                    adicionarViaScanner(carrinhoEntrada, codigoLido);
+                } else if (tituloAba.contains("Saída")) {
+                    adicionarViaScanner(carrinhoSaida, codigoLido);
                 }
             }
 
-            estoqueGeral.setAll(service.listarTodos());
-            carrinho.clear();
-            quantidades.clear();
+            barcodeBuffer.setLength(0);
+            event.consume();
+        }
+    }
 
-            atualizarStatus(isEntrada ? "Entrada concluída ✓" : "Saída concluída ✓", false);
-        } catch (Exception ex) {
-            atualizarStatus("Erro: " + ex.getMessage(), true);
+    private void adicionarViaScanner(ObservableList<Product> carrinho, String codigoLido) {
+        try {
+            String codigoProduto = ConversorCodigo.converterParaCodigoDeProduto(codigoLido);
+
+            service.encontrarPeloCodigo(codigoProduto).ifPresentOrElse(produto -> {
+                carrinho.add(produto);
+                if (carrinho == carrinhoEntrada) {
+                    produto.entrada(codigoLido);
+                } else {
+                    produto.saida(codigoLido);
+                }
+                service.salvarProduto(produto);
+                ultimoProduto = produto;
+                atualizarStatus("Adicionado ✓ " + codigoProduto, false);
+            }, () -> atualizarStatus("Produto não encontrado", true));
+
+        } catch (Exception e) {
+            atualizarStatus("Erro no scan: " + e.getMessage(), true);
         }
     }
 
     private VBox criarPainelCadastro() {
-        Label lblTitulo = new Label("Adicionar ou Editar Produto");
-        lblTitulo.setStyle("-fx-font-size: 20; -fx-font-weight: bold;");
+        Label lblTitulo = new Label("Cadastro de Produto");
+        lblTitulo.setStyle("-fx-font-size: 18; -fx-font-weight: bold;");
 
         TextField txtCodigo = new TextField();
         txtCodigo.setPromptText("Código");
@@ -241,8 +210,6 @@ public class EstoqueApp extends Application {
         txtDescricao.setPromptText("Descrição");
 
         Button btnSalvar = new Button("Salvar");
-        btnSalvar.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-
         btnSalvar.setOnAction(e -> {
             String codigo = txtCodigo.getText().trim();
             if (codigo.isEmpty()) {
@@ -251,14 +218,14 @@ public class EstoqueApp extends Application {
             }
 
             try {
-                Product p =
-                        service.encontrarPeloCodigo(codigo).orElseGet(() -> new Product(codigo));
+                Product p = service.encontrarPeloCodigo(codigo)
+                        .orElseGet(() -> new Product(codigo, null));
 
                 p.alterarNomeDescricao(txtNome.getText().trim(), txtDescricao.getText().trim());
                 service.salvarProduto(p);
 
                 estoqueGeral.setAll(service.listarTodos());
-                atualizarStatus("Salvo com sucesso!", false);
+                atualizarStatus("Produto salvo ✓", false);
 
                 txtCodigo.clear();
                 txtNome.clear();
@@ -268,25 +235,15 @@ public class EstoqueApp extends Application {
             }
         });
 
-        Button btnLimpar = new Button("Limpar");
-        btnLimpar.setOnAction(e -> {
-            txtCodigo.clear();
-            txtNome.clear();
-            txtDescricao.clear();
-        });
-
-        VBox painel = new VBox(20);
-        painel.getChildren().addAll(lblTitulo, new HBox(10, new Label("Código:"), txtCodigo),
+        VBox box = new VBox(15, lblTitulo, new HBox(10, new Label("Código:"), txtCodigo),
                 new HBox(10, new Label("Nome:"), txtNome),
-                new HBox(10, new Label("Descrição:"), txtDescricao),
-                new HBox(10, btnSalvar, btnLimpar));
+                new HBox(10, new Label("Descrição:"), txtDescricao), btnSalvar);
 
-        return painel;
+        return box;
     }
 
     private VBox criarPainelEstoqueAtual() {
-        TableView<Product> tabela = new TableView<>();
-        tabela.setItems(estoqueGeral);
+        TableView<Product> tabela = new TableView<>(estoqueGeral);
 
         TableColumn<Product, String> colCodigo = new TableColumn<>("Código");
         colCodigo.setCellValueFactory(
@@ -306,33 +263,9 @@ public class EstoqueApp extends Application {
 
         tabela.getColumns().addAll(colCodigo, colNome, colDesc, colSaldo);
 
-        Button btnAtualizar = new Button("Atualizar");
-        btnAtualizar.setOnAction(e -> estoqueGeral.setAll(service.listarTodos()));
+        VBox box = new VBox(15, new Label("Estoque Atual"), tabela);
 
-        VBox painel = new VBox(15);
-        painel.getChildren().addAll(new Label("Estoque Atual"), tabela, btnAtualizar);
-
-        return painel;
-    }
-
-    private void handleScannerInput(KeyEvent event) {
-        long now = Instant.now().toEpochMilli();
-        if (now - lastKeyTime > MAX_DELAY_MS) {
-            barcodeBuffer.setLength(0);
-        }
-        lastKeyTime = now;
-
-        String ch = event.getCharacter();
-        if (ch.equals("\r") || event.getCode() == KeyCode.ENTER) {
-            String codigo = barcodeBuffer.toString().trim();
-            if (codigo.length() >= 3) {
-                adicionarAoCarrinho(carrinhoSaida, quantidadesSaida, codigo, 1);
-            }
-            barcodeBuffer.setLength(0);
-            event.consume();
-        } else if (!ch.isBlank()) {
-            barcodeBuffer.append(ch);
-        }
+        return box;
     }
 
     private void atualizarStatus(String texto, boolean erro) {

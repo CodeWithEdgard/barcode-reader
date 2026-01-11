@@ -12,7 +12,9 @@ public class Product {
 
     private BigDecimal saldo;
 
-    public Product(String codigo) {
+    private Localizacao localizacao;
+
+    public Product(String codigo, Localizacao localizacao) {
 
         if (codigo == null || codigo.isBlank()) {
             throw new IllegalArgumentException("Codigo do Produto é Obrigatorio");
@@ -22,9 +24,18 @@ public class Product {
         this.nome = "";
         this.descricao = "";
         this.saldo = BigDecimal.ZERO;
+        this.localizacao = localizacao;
     }
 
-    public void entrada(BigDecimal quantidade) {
+    public void entrada(String codigoLido) {
+
+        String codigoProduto = ConversorCodigo.converterParaCodigoDeProduto(codigoLido);
+
+        if (!this.codigo.equals(codigoProduto)) {
+            throw new IllegalArgumentException("Código do produto não corresponde");
+        }
+
+        BigDecimal quantidade = ConversorCodigo.converterCodigoParaSaldo(codigoLido);
 
         if (quantidade == null || quantidade.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Quantidade não pode ser negativa ou zero");
@@ -33,7 +44,15 @@ public class Product {
         saldo = saldo.add(quantidade);
     }
 
-    public void saida(BigDecimal quantidade) {
+    public void saida(String codigoLido) {
+
+        String codigoProduto = ConversorCodigo.converterParaCodigoDeProduto(codigoLido);
+
+        if (!this.codigo.equals(codigoProduto)) {
+            throw new IllegalArgumentException("Código do produto não corresponde");
+        }
+
+        BigDecimal quantidade = ConversorCodigo.converterCodigoParaSaldo(codigoLido);
 
         if (quantidade == null || quantidade.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Quantidade de retirada deve ser maior que zero");
@@ -65,6 +84,10 @@ public class Product {
 
     public String getDescricao() {
         return descricao;
+    }
+
+    public Localizacao getLocalizacao() {
+        return localizacao;
     }
 
     @Override
