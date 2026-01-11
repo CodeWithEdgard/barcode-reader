@@ -1,42 +1,22 @@
 package com.br.application;
 
-import com.br.service.ProductService;
 import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 
 public class EstoqueApp extends Application {
 
-    private ProductService service;
-
-    Button salvar = new Button("Salvar");
-    TextField campo = new TextField();
-
-
-    // Layout vertical box
-    VBox layout = new VBox(10, campo, salvar);
-
-    // conteudo da janela
-    Scene scene = new Scene(layout, 300, 200);
-
-
-
     // stage janela
     @Override
     public void start(Stage stage) throws Exception {
 
-        campo.setPromptText("Nome do Produto");
+        FXMLLoader loader = new FXMLLoader(getClass().getResource("/view/estoque-view.fxml"));
 
-        salvar.setOnAction(e -> {
-            String nome = campo.getText();
-            System.out.println("Produto salvo: " + nome);
-        });
+        Scene scene = new Scene(loader.load(), 900, 600);
 
-        stage.setTitle("Cadastro Simples");
+        stage.setTitle("Sistema de Estoque - Leitor de Código");
         stage.setScene(scene);
         stage.show();
 
