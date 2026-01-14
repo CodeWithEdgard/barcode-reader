@@ -1,160 +1,116 @@
 # Sistema de Controle de Estoque com Leitor de Código de Barras
 
----
+## O que é isso?
 
-## 📌 Contexto
+Basicamente é um sistema de estoque com interface gráfica. A ideia era fazer algo que pudesse ser usado de verdade num comércio ou almoxarifado, usando aqueles leitores de código de barras USB (que o computador lê como se fosse um teclado mesmo).
 
-Este projeto simula um **sistema de controle de estoque** para um ambiente real (comércio, almoxarifado ou indústria), utilizando um **leitor de código de barras USB**, tratado como um dispositivo de entrada padrão (teclado).
+Usei JavaFX com Scene Builder pra interface. Separei o FXML e o CSS em arquivos diferentes pra ficar mais organizado. O foco era deixar o código bem estruturado e com as regras de negócio no lugar certo.
 
-O sistema foi desenvolvido em **Java puro**, com foco em **modelagem correta de domínio**, **boas práticas de arquitetura** e **clareza das regras de negócio**, sem dependência de frameworks ou banco de dados.
+## O que dá pra fazer
 
-O objetivo é demonstrar **capacidade técnica, organização e pensamento de software orientado ao domínio**, e não apenas funcionamento.
+- Registrar entrada e saída de produtos pelo código de barras
+- Ver o saldo atual de cada produto
+- Consultar o histórico de todas as movimentações
+- O sistema não deixa você tirar mais produto do que tem em estoque
 
----
+## Por que fiz algumas coisas de um jeito específico
 
-## 🎯 Objetivo do Projeto
+**BigDecimal pro saldo:** Porque tem produto que você vende por peso, metro, litro... então o estoque não é sempre um número inteiro. E BigDecimal evita aqueles erros doidos de arredondamento.
 
-Construir uma aplicação console capaz de:
+**Produto se identifica pelo código de barras:** Na vida real é assim mesmo. Um código = um produto.
 
-- Controlar entrada e saída de produtos por código de barras
-- Manter o saldo de estoque consistente
-- Registrar o histórico completo de movimentações
-- Garantir regras de negócio no **domínio**, não no fluxo de UI
+**Domínio rico:** Tentei fazer as classes do domínio (Product, StockMovement) se protegerem sozinhas. Por exemplo, você não consegue deixar o estoque negativo porque a própria classe Product não permite.
 
----
+**Separação em camadas:**
 
-## 🧠 Princípios e Decisões de Design
+- `domain` = as regras do negócio (Product, Historico, Localizacao, enums...)
+- `service` = organiza o fluxo das operações
+- `repository` = guarda os dados (por enquanto só em memória)
+- `controller` = faz a ponte entre a interface e o service
+- `application` = inicia o JavaFX
+- `resources` = arquivos FXML e CSS separados
 
-- **Domínio rico**: entidades protegem seu próprio estado
-- **Produto identificado unicamente pelo código de barras**
-- **BigDecimal** utilizado para saldo, permitindo:
+## Funcionalidades
 
-  - produtos fracionados (metros, peso, volume)
-  - precisão em operações
+### Cadastro de produto
 
-- **Separação clara de responsabilidades**:
+Quando você escaneia um código de barras novo, o sistema cria o produto automaticamente.
 
-  - UI → interação com usuário
-  - Service → orquestração do fluxo
-  - Domain → regras de negócio
-  - Repository → persistência (in-memory)
+### Entrada de produto
 
-- **Sem frameworks**, para evidenciar domínio e arquitetura
+Adiciona quantidade no estoque. Pode ser número quebrado tipo 2.5kg, 10.75m, etc.
 
----
+### Saída de produto
 
-## 📋 Requisitos Funcionais
+Tira do estoque. O sistema checa se tem quantidade suficiente antes de deixar você fazer a saída.
 
-### RF01 – Registro de Produtos via Código de Barras
+### Histórico
 
-- O sistema recebe códigos de barras como `String`
-- O código identifica unicamente um produto
-- Caso o produto não exista, ele é criado automaticamente
+Toda entrada e saída fica registrada com data/hora, tipo de movimento e quantidade.
 
----
+## Regras que o sistema garante
 
-### RF02 – Entrada de Produto
+- Estoque nunca fica negativo
+- Não dá pra movimentar quantidade zero ou negativa
+- Todo produto precisa ter um código de barras válido
+- Só registra no histórico se a operação for válida
 
-- Incrementa o saldo do produto
-- Quantidade pode ser **fracionada** (`BigDecimal`)
-- Quantidade deve ser **maior que zero**
-- Operação inválida gera erro de domínio
-
----
-
-### RF03 – Saída de Produto
-
-- Decrementa o saldo do produto
-- Impede saída se:
-
-  - quantidade ≤ 0
-  - quantidade maior que o saldo disponível
-
-- Nunca permite saldo negativo
-
----
-
-### RF04 – Saldo de Estoque
-
-- O saldo pertence ao **Produto**
-- Não existe setter direto para saldo
-- Toda alteração ocorre via métodos de domínio
-
----
-
-### RF05 – Histórico de Movimentações
-
-- Toda entrada ou saída válida gera uma movimentação
-- Cada movimentação contém:
-
-  - código do produto
-  - tipo (ENTRADA / SAÍDA)
-  - quantidade movimentada
-  - data e hora
-
-- Histórico pode ser listado posteriormente
-
----
-
-## 🧩 Regras de Negócio (Invariantes)
-
-- Estoque nunca pode ser negativo
-- Quantidades devem ser maiores que zero
-- Produto não pode existir sem código
-- Código de barras não pode ser nulo ou em branco
-- Movimentações só são registradas se a operação for válida
-
----
-
-## 🗂️ Estrutura de Pacotes
+## Como tá organizado
 
 ```
-src/
- ├── domain/
- │    ├── Product.java
- │    ├── StockMovement.java
- │    └── MovementType.java
- │
- ├── repository/
- │    ├── ProductRepository.java
- │    ├── ProductRepositoryImpl.java
- │    ├── MovementRepository.java
- │    └── MovementRepositoryImpl.java
- │
- ├── service/
- │    └── StockService.java
- │
- ├── ui/
- │    └── ConsoleUI.java
- │
- └── Main.java
+.
+├── pom.xml
+├── README.md
+├── src
+│   ├── main
+│   │   ├── java
+│   │   │   └── com
+│   │   │       └── br
+│   │   │           ├── application
+│   │   │           │   └── EstoqueApp.java
+│   │   │           ├── controller
+│   │   │           │   └── EstoqueController.java
+│   │   │           ├── domain
+│   │   │           │   ├── ConversorCodigo.java
+│   │   │           │   ├── enums
+│   │   │           │   │   ├── Almoxarifado.java
+│   │   │           │   │   ├── Corredor.java
+│   │   │           │   │   ├── Estoque.java
+│   │   │           │   │   ├── Prateleira.java
+│   │   │           │   │   └── TipoMovimento.java
+│   │   │           │   ├── Historico.java
+│   │   │           │   ├── Localizacao.java
+│   │   │           │   └── Product.java
+│   │   │           ├── repository
+│   │   │           │   ├── ProductRepositoryImpl.java
+│   │   │           │   └── ProductRepository.java
+│   │   │           └── service
+│   │   │               └── ProductService.java
+│   │   └── resources
+│   │       ├── css
+│   │       │   └── estilo.css
+│   │       └── view
+│   │           └── estoque-view.fxml
+│   └── test
+│       └── java
+│           └── com
+│               └── br
+│                   └── Service
+│                       └── ProductServiceTest.java
 ```
 
----
+## Testes
 
-## 🧪 Testes
+Fiz testes unitários pra camada de serviço usando JUnit 5. A ideia é testar se as regras de negócio tão funcionando direitinho.
 
-- Testes unitários focados na **camada de serviço**
-- Validação das regras de negócio
-- Uso de JUnit 5
-- Repositórios em memória para isolamento dos testes
+## Próximos passos (se eu for continuar isso)
 
----
+- Salvar os dados em arquivo ou banco de dados
+- Melhorar a interface (talvez adicionar gráficos, dashboards)
+- Adicionar mais campos pros produtos (fornecedor, validade, etc)
+- Fazer relatórios de estoque em PDF
+- Sistema de permissões/usuários
 
-## 📈 Diferenciais Técnicos
+## Observações
 
-- Domínio rico e encapsulado
-- Uso consciente de `BigDecimal`
-- Repositórios desacoplados (facilmente substituíveis)
-- Código preparado para evolução (arquivo, banco, API)
-- Commits pequenos e bem descritos
-
----
-
-## 🏁 Considerações Finais
-
-Este projeto foi desenvolvido com foco em **clareza, robustez e boas práticas**, simulando um cenário real de controle de estoque, mesmo utilizando apenas Java puro e aplicação console.
-
-O objetivo não é apenas funcionar, mas **mostrar maturidade técnica, organização e capacidade de modelar regras de negócio reais**.
-
----
+Fiz sem frameworks de propósito. Queria entender melhor como estruturar uma aplicação e onde colocar cada coisa. É mais fácil aprender assim antes de pular pros frameworks que fazem tudo automaticamente.
