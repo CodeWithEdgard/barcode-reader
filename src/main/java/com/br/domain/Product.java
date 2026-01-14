@@ -29,28 +29,16 @@ public class Product {
 
     public void entrada(String codigoLido) {
 
-        String codigoProduto = ConversorCodigo.converterParaCodigoDeProduto(codigoLido);
-
-        if (!this.codigo.equals(codigoProduto)) {
-            throw new IllegalArgumentException("Código do produto não corresponde");
-        }
-
         BigDecimal quantidade = ConversorCodigo.converterCodigoParaSaldo(codigoLido);
 
         if (quantidade == null || quantidade.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Quantidade não pode ser negativa ou zero");
         }
 
-        saldo = saldo.add(quantidade);
+        this.saldo = saldo.add(quantidade);
     }
 
     public void saida(String codigoLido) {
-
-        String codigoProduto = ConversorCodigo.converterParaCodigoDeProduto(codigoLido);
-
-        if (!this.codigo.equals(codigoProduto)) {
-            throw new IllegalArgumentException("Código do produto não corresponde");
-        }
 
         BigDecimal quantidade = ConversorCodigo.converterCodigoParaSaldo(codigoLido);
 
@@ -113,6 +101,12 @@ public class Product {
         } else if (!codigo.equals(other.codigo))
             return false;
         return true;
+    }
+
+    @Override
+    public String toString() {
+        return "Product [codigo=" + codigo + ", nome=" + nome + ", descricao=" + descricao
+                + ", saldo=" + saldo + ", localizacao=" + localizacao + "]";
     }
 
 }
