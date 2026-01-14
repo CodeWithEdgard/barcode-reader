@@ -17,8 +17,6 @@ public class ProductService {
 
         // TODO: CASO O CODIGO NÃO EXISTA CRIAR AUTOMATICAMENTE
 
-        // todo: caso o codigo já existir THROW ERROR
-
         repository.salvarProduto(product);
     }
 
