@@ -1,0 +1,46 @@
+/* Fundo da aplicação */
+.root {
+    -fx-background-color: #f4f6f8;
+    -fx-padding: 20;
+}
+
+/* Título */
+.titulo {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+/* Campo de código */
+.text-field {
+    -fx-font-size: 14px;
+    -fx-pref-width: 260px;
+}
+
+/* Botões */
+.button {
+    -fx-font-size: 14px;
+    -fx-pref-width: 200px;
+}
+
+/* Botão entrada */
+.botao-entrada {
+    -fx-background-color: #2ecc71;
+    -fx-text-fill: white;
+}
+
+/* Botão saída */
+.botao-saida {
+    -fx-background-color: #e74c3c;
+    -fx-text-fill: white;
+}
+
+/* Status */
+.status-ok {
+    -fx-text-fill: green;
+    -fx-font-weight: bold;
+}
+
+.status-erro {
+    -fx-text-fill: red;
+    -fx-font-weight: bold;
+}
