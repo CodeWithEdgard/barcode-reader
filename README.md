@@ -111,6 +111,18 @@ Fiz testes unitários pra camada de serviço usando JUnit 5. A ideia é testar s
 - Fazer relatórios de estoque em PDF
 - Sistema de permissões/usuários
 
+## Como rodar
+
+```bash
+mvn javafx:run
+```
+
+Só isso. O Maven baixa as dependências do JavaFX e roda a aplicação.
+
 ## Observações
 
-Fiz sem frameworks de propósito. Queria entender melhor como estruturar uma aplicação e onde colocar cada coisa. É mais fácil aprender assim antes de pular pros frameworks que fazem tudo automaticamente.
+Usei JavaFX com Scene Builder pra fazer a interface. Separei bem o FXML (estrutura da tela) do CSS (visual) e do Controller (lógica). Achei importante aprender a organizar um projeto JavaFX direito antes de sair fazendo tudo misturado.
+
+A parte do Maven (pom.xml) tá configurada pra rodar o JavaFX certinho. Foi meio chato configurar no começo mas agora roda tranquilo.
+
+![alt text](<Captura de tela de 2026-01-14 20-25-16.png>)
