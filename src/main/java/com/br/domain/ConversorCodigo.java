@@ -6,36 +6,44 @@ import com.br.domain.enums.Estoque;
 
 public class ConversorCodigo {
 
-    /*
-     * ======================= PRODUTO + QUANTIDADE =======================
-     */
-
     public static BigDecimal converterCodigoParaSaldo(String codigo) {
+        if (codigo == null || codigo.trim().isEmpty()) {
+            return BigDecimal.ZERO;
+        }
 
-        int i = codigo.length() - 1;
+        String s = codigo.trim();
+        int n = s.length();
 
-        while (Character.isDigit(codigo.charAt(i))) {
+        int i = n - 1;
+
+        // 1. Pula zeros à direita (finais)
+        while (i >= 0 && s.charAt(i) == '0') {
             i--;
         }
 
-        String quantidadeStr = codigo.substring(i + 1);
-        return BigDecimal.valueOf(Integer.parseInt(quantidadeStr));
-    }
-
-    public static String converterParaCodigoDeProduto(String codigo) {
-
-        int i = codigo.length() - 1;
-
-        while (Character.isDigit(codigo.charAt(i))) {
-            i--;
+        // Se chegou no início e era tudo zero → quantidade 0
+        if (i < 0) {
+            return BigDecimal.ZERO;
         }
 
-        return codigo.substring(0, i);
-    }
+        // Agora estamos no primeiro dígito > 0 vindo de trás
+        // Vamos para a esquerda até achar um '0' ou o início
+        int inicioQuantidade = i;
+        while (inicioQuantidade > 0 && s.charAt(inicioQuantidade - 1) == '0') {
+            inicioQuantidade--;
+        }
 
-    /*
-     * ======================= LOCALIZAÇÃO =======================
-     */
+        // Se o caractere à esquerda não é '0', mas ainda estamos dentro de dígitos,
+        // a quantidade começa no primeiro dígito não-zero que achamos
+        String quantidadeStr = s.substring(inicioQuantidade, n);
+
+        try {
+            return new BigDecimal(quantidadeStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "Não foi possível converter quantidade: " + quantidadeStr);
+        }
+    }
 
     public static Localizacao converterParaLocalizacao(String codigoLocalizacao) {
 
